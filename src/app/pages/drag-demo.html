@@ -1,0 +1,79 @@
+<div class="demo-page">
+  <header class="demo-hero">
+    <p class="demo-eyebrow">示例 05</p>
+    <h1>拖拽：排序、移动与放置校验</h1>
+  </header>
+
+  <div class="demo-grid">
+    <div class="card">
+      <div class="card-head">
+        <h2>文件目录树（可拖拽）</h2>
+        <div class="toolbar">
+          <label class="toggle">
+            <input type="checkbox" [checked]="customGhost()" (change)="customGhost.set($any($event.target).checked)" />
+            <span class="toggle-track" aria-hidden="true"></span>
+            <span>自定义拖拽幽灵</span>
+          </label>
+          <button type="button" class="btn" (click)="expandAll()">全部展开</button>
+          <button type="button" class="btn" (click)="collapseAll()">全部折叠</button>
+          <button type="button" class="btn btn-primary" (click)="reset()">重置</button>
+        </div>
+      </div>
+      <div class="card-pad">
+        <div class="tree-viewport tall">
+          <ng-draggable-tree
+            #tree
+            [nodes]="data()"
+            [options]="options"
+            (dataChange)="onDataChange($event)"
+            (dragStart)="onDragStart($event)"
+            (dragEnd)="onDragEnd($event)"
+          >
+            @if (customGhost()) {
+              <ng-template #dragGhostTemplate let-node let-row="row" let-draggedNodes="draggedNodes">
+                <div class="tree-ghost-demo">
+                  <img class="tree-ghost-demo-icon" [src]="ghostIcon(node)" alt="" />
+                  <div class="tree-ghost-demo-body">
+                    <div class="tree-ghost-demo-name">{{ node.name }}</div>
+                    <div class="tree-ghost-demo-sub">
+                      {{ node.kind === 'folder' ? '目录' : '文件' }} · 深度 {{ row.depth }}
+                    </div>
+                  </div>
+                  @if (draggedNodes.length > 1) {
+                    <span class="tree-ghost-demo-count">+{{ draggedNodes.length - 1 }}</span>
+                  }
+                </div>
+              </ng-template>
+            }
+          </ng-draggable-tree>
+        </div>
+        <div class="tree-tip">
+          <span class="chip is-accent">当前可见 {{ tree.rowCount() }} 行</span>
+          <span class="chip">按住行拖动即可移动</span>
+          <span class="chip">拖动选中行，意味着拖动所有被选中的行，拖动未选中的行，只拖动自身</span>
+          @if (customGhost()) {
+            <span class="chip">拖动时跟随指针的是自定义幽灵</span>
+          } @else {
+            <span class="chip">未提供幽灵模板：克隆整行作为幽灵</span>
+          }
+        </div>
+      </div>
+    </div>
+
+    <aside class="side-stack">
+      <app-event-log [entries]="logs()" (clear)="clearLogs()" />
+
+      <div class="card card-pad">
+        <h2 class="card-sub">本页规则</h2>
+        <ul class="note-list">
+          <li>selectOnClick 点击选中节点（单选）</li>
+          <li>multiSelect 开启shift/ctrl多选</li>
+          <li>allowDrag 回调收到整组被拖节点，本页全部允许拖动</li>
+          <li>allowDrop 自定义放置规则：禁止拖入自身或其子树</li>
+          <li>叶子节点不可作为容器</li>
+          <li>dragGhostTemplate 自定义幽灵模板</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</div>

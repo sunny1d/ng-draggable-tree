@@ -1,0 +1,65 @@
+<div class="demo-page">
+  <header class="demo-hero">
+    <p class="demo-eyebrow">示例 04</p>
+    <h1>懒加载：首次展开再拉取</h1>
+  </header>
+
+  <div class="demo-grid">
+    <div class="card">
+      <div class="card-head">
+        <h2>云资源目录</h2>
+        <div class="toolbar">
+           <label class="toggle">
+            <input type="checkbox" [checked]="customLoader()" (change)="customLoader.set($any($event.target).checked)" />
+            <span class="toggle-track" aria-hidden="true"></span>
+            <span>自定义loading</span>
+          </label>
+          <button type="button" class="btn" (click)="expandAll()">递归展开</button>
+          <button type="button" class="btn" (click)="collapseAll()">全部折叠</button>
+          <button type="button" class="btn btn-primary" (click)="reset()">重置（清缓存）</button>
+        </div>
+      </div>
+      <div class="card-pad">
+        <div class="tree-viewport tall">
+          <ng-draggable-tree
+            #tree
+            [(nodes)]="data"
+            [options]="options"
+            (loadChildren)="onLoadChildren($event)"
+          >
+          @if (customLoader()) {
+
+            <ng-template #loadingTemplate let-node let-index="index">
+              <span>加载中，请稍后...</span>
+            </ng-template>
+          }
+        </ng-draggable-tree>
+        </div>
+        <div class="tree-tip">
+          @if (inflight() > 0) {
+            <span class="chip is-accent">加载中 {{ inflight() }} 个分支…</span>
+          } @else {
+            <span class="chip is-accent">空闲</span>
+          }
+          <span class="chip">每次点击箭头都模拟 350~900ms 网络延迟</span>
+          <span class="chip">数据源已回写：{{ stats().total }} 个节点 / {{ stats().branches }} 个分支已加载</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="side-stack">
+      <app-event-log [entries]="logs()" (clear)="clearLogs()" />
+
+      <div class="card card-pad">
+        <h2 class="card-sub">懒加载要点</h2>
+        <ul class="note-list">
+          <li>hasChildrenField 标记是否还有下一层(有下一层显示箭头)</li>
+          <li>loadChildren 加载子节点数据的Promise 或函数（返回 Promise / Observable / 数组 ）</li>
+          <li>已加载结果写入 childrenField 指定的字段</li>
+          <li>递归展开 expandAllRecursive()：逐层加载 + 展开到最深层</li>
+          <li>loadingTemplate 自定义加载中模版</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</div>

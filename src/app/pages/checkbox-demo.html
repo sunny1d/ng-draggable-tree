@@ -1,0 +1,60 @@
+<div class="demo-page">
+  <header class="demo-hero">
+    <p class="demo-eyebrow">示例 02</p>
+    <h1>复选框：三态级联 / 独立勾选</h1>
+  </header>
+
+  <div class="demo-grid">
+    <div class="card">
+      <div class="card-head">
+        <h2>权限字典树</h2>
+        <div class="toolbar">
+          <button type="button" class="btn" (click)="expandAll()">全部展开</button>
+          <button type="button" class="btn" (click)="collapseAll()">全部折叠</button>
+          <button type="button" class="btn" (click)="toggleTriState()">
+            三态级联：{{ triState() ? '开' : '关' }}
+          </button>
+          <button type="button" class="btn btn-primary" (click)="reset()">重置</button>
+        </div>
+      </div>
+      <div class="card-pad">
+        <div class="tree-viewport tall">
+          <ng-draggable-tree
+            #tree
+            [nodes]="data()"
+            [options]="options()"
+            (selectionChange)="onSelectionChange($event)"
+          />
+        </div>
+        <div class="tree-tip">
+          <span class="chip is-accent">已勾选 {{ checked().length }} 项</span>
+          @for (name of checked(); track name) {
+            <span class="tag">{{ name }}</span>
+          }
+        </div>
+      </div>
+    </div>
+
+    <aside class="side-stack">
+      <app-event-log [entries]="logs()" (clear)="clearLogs()" />
+
+      <div class="card card-pad">
+        <h2 class="card-sub">当前规则</h2>
+        <ul class="note-list">
+          <li>开启useCheckbox 每行显示复选框</li>
+           @if (triState()) {
+            <li>useTriState = true：勾选状态以叶子为单元存储，父节点状态由子树统计派生</li>
+            <li>全部叶子勾选后父节点显示已勾选</li>
+            <li>部分勾选时父节点显示半选（indeterminate）</li>
+            <li>点击父复选框会整组勾选 / 取消</li>
+          } @else {
+            <li>useTriState = false：父子互不联动，每行只切换自身</li>
+            <li>不存在半选态，父节点也可被独立勾选 / 取消</li>
+            <li>勾选集合即「被勾选的节点」本身</li>
+          }
+          <li>键盘：↑/↓ 移动焦点，Space 切换勾选</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</div>

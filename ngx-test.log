@@ -1,0 +1,26 @@
+﻿node.exe : npm warn Unknown user config "python". This will stop working in the next major version of npm. See `npm hel
+p npmrc` for supported config options.
+所在位置 行:1 字符: 1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm warn Unknow...config options.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+npm warn Unknown user config "sass_binary_site". This will stop working in the next major version of npm. See `npm help
+ npmrc` for supported config options.
+❯ Building...
+✔ Building...
+Application bundle generation complete. [1.982 seconds] - 2026-09-07T08:27:39.068Z
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90mC:/Users/sunny/CodeBuddy/20260907110859[39m
+
+ [32m✓[39m [30m[42m ngx-tree [49m[39m projects/ngx-tree/src/lib/tree.model.spec.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m [30m[42m ngx-tree [49m[39m projects/ngx-tree/src/lib/tree.operations.spec.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m [30m[42m ngx-tree [49m[39m projects/ngx-tree/src/lib/ngx-tree.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 264[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[32m28 passed[39m[22m[90m (28)[39m
+[2m   Start at [22m 16:27:39
+[2m   Duration [22m 1.79s[2m (transform 357ms, setup 1.09s, import 509ms, tests 282ms, environment 2.26s)[22m
+

@@ -1,0 +1,22 @@
+<div class="app-shell">
+  <header class="app-header">
+    <a class="brand" routerLink="/">
+      <span class="brand-mark" aria-hidden="true">T</span>
+      <span>ng-draggable<b>-tree</b></span>
+    </a>
+    <nav class="app-nav" aria-label="示例导航">
+      @for (item of nav; track item.path) {
+        <a
+          [routerLink]="item.path"
+          routerLinkActive="is-active"
+          [routerLinkActiveOptions]="item.exact ? { exact: true } : {}"
+        >
+          {{ item.label }}
+        </a>
+      }
+    </nav>
+  </header>
+  <main class="app-main">
+    <router-outlet />
+  </main>
+</div>

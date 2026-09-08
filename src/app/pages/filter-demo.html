@@ -1,0 +1,68 @@
+<div class="demo-page">
+  <header class="demo-hero">
+    <p class="demo-eyebrow">示例 06</p>
+    <h1>过滤：实时搜索与路径保留</h1>
+  </header>
+
+  <div class="demo-grid">
+    <div class="card">
+      <div class="card-head">
+        <h2>文件目录树</h2>
+        <div class="toolbar">
+          <label class="toggle">
+            <input type="checkbox" [checked]="autoShow()" (change)="autoShow.set($any($event.target).checked)" />
+            <span class="toggle-track" aria-hidden="true"></span>
+            <span>保留父子路径</span>
+          </label>
+          <div class="search">
+            <input
+              [value]="keyword()"
+              type="search"
+              placeholder="试试：src / 文档 / ng"
+              (input)="onKeyword($any($event.target).value)"
+            />
+            @if (keyword()) {
+              <button type="button" class="btn btn-ghost btn-sm" (click)="clear()">清除</button>
+            }
+          </div>
+        </div>
+      </div>
+      <div class="card-pad">
+        <div class="tree-viewport tall">
+          <ng-draggable-tree
+            #tree
+            [nodes]="data()"
+            [options]="options()"
+            (click)="onClick($event)"
+          />
+        </div>
+        <div class="tree-tip">
+          <span class="chip is-accent">当前可见 {{ tree.rowCount() }} 行</span>
+          @for (word of suggested; track word) {
+            <button type="button" class="chip" (click)="applySuggestion(word)">{{ word }}</button>
+          }
+        </div>
+      </div>
+    </div>
+
+    <aside class="side-stack">
+      <app-event-log [entries]="logs()" (clear)="clearLogs()" />
+
+      <div class="card card-pad">
+        <h2 class="card-sub">过滤行为</h2>
+        <ul class="note-list">
+           @if (autoShow()) {
+            <li>autoShow = true 保留祖先路径</li>
+            <li>显示折叠展开按钮，但不可操作</li>
+          } @else {
+            <li>autoShow = false：不保留祖先路径</li>
+            <li>不显示折叠展开按钮</li>
+          }
+          <li>highlightMode: label 整段 label 高亮；keyword 模式只高亮匹配词</li>
+          <li>checkbox 在过滤时自动隐藏</li>
+          <li>可用 filterFn 自定义命中规则</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</div>

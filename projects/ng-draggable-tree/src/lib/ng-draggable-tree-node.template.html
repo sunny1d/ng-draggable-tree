@@ -1,0 +1,97 @@
+@let r = row();
+@let a = api();
+@let o = opts();
+@let drop = a!.dragMarker(r!);
+@let locked = isToggleLocked();
+
+<div
+  class="ng-draggable-tree-row"
+  [class.is-entering]="entering()"
+  [class.is-selected]="r!.selected"
+  [class.is-focused]="r!.active"
+  [class.is-match]="r!.matched"
+  [class.is-child-match]="r!.subtreeHasMatch"
+  [class.is-leaf]="r!.isLeaf"
+  [class.is-loading]="a!.isLoading(r!)"
+  [class.is-grabbable]="a!.isDraggable(r!) && !a!.dragDropActive()"
+  [class.is-dragging]="a!.isDragging(r!)"
+  [class.is-drop-before]="drop.active && drop.position === 'before'"
+  [class.is-drop-after]="drop.active && drop.position === 'after'"
+  [class.is-drop-child]="drop.active && drop.position === 'child'"
+  [class.is-drop-forbidden]="drop.rejected"
+  [style.padding-inline-start.px]="r!.depth * o!.levelIndent"
+  cdkDrag
+  [cdkDragDisabled]="!a!.isDraggable(r!)"
+  [cdkDragData]="r"
+  [cdkDragStartDelay]="120"
+  (cdkDragStarted)="dragStarted($event)"
+  (cdkDragMoved)="dragMoved($event)"
+  (cdkDragEnded)="dragEnded()"
+  role="treeitem"
+  [attr.aria-selected]="r!.selected"
+  [attr.aria-expanded]="r!.expanderVisible ? r!.expanded : null"
+  [attr.aria-level]="r!.depth + 1"
+  [attr.data-treeid]="r!.id"
+  [tabindex]="r!.active ? 0 : -1"
+  (click)="onClick($event)"
+  (dblclick)="onDblClick($event)"
+  (contextmenu)="onContextMenu($event)">
+  @if (o!.showLine && r!.linesVisible) {
+  <span class="ng-draggable-tree-line" aria-hidden="true">
+    @for (d of depthRange(r!.depth); track d) {
+    <span class="ng-draggable-tree-line-seg is-on" [style.width.px]="o!.levelIndent"></span>
+    }
+  </span>
+  }
+
+  @if (r!.expanderVisible) {
+  <button
+    type="button"
+    class="ng-draggable-tree-toggle"
+    [class.is-locked]="locked"
+    [attr.aria-label]="r!.expanded ? '折叠' : '展开'"
+    [attr.aria-disabled]="locked ? 'true' : null"
+    (click)="toggleExpand($event)">
+    <span class="ng-draggable-tree-caret" [class.is-open]="r!.expanded"></span>
+  </button>
+  } @else {
+  <span class="ng-draggable-tree-toggle-spacer" aria-hidden="true"></span>
+  }
+
+  @if (o!.useCheckbox) {
+  @if (r!.checkboxState !== 'hidden') {
+  <span class="ng-draggable-tree-checkbox" (click)="onCheckbox($event)">
+    <span
+      class="ng-draggable-tree-checkbox-box"
+      [class.is-checked]="r!.checkboxState === 'checked'"
+      [class.is-indeterminate]="r!.checkboxState === 'indeterminate'"
+      role="checkbox"
+      [attr.aria-checked]="r!.checkboxState === 'checked' ? 'true' : r!.checkboxState === 'indeterminate' ? 'mixed' : 'false'"
+      tabindex="-1"></span>
+  </span>
+  } @else {
+  <span class="ng-draggable-tree-checkbox-spacer" aria-hidden="true"></span>
+  }
+  }
+
+  <span class="ng-draggable-tree-content">
+    @let nodeTpl = templates()?.treeNodeTemplate;
+    @if (nodeTpl) {
+      <ng-container
+        [ngTemplateOutlet]="nodeTpl"
+        [ngTemplateOutletContext]="nodeContext()" />
+    } @else if (keywordHighlight()) {
+      <span class="ng-draggable-tree-label">@for (seg of displayText() | treeHighlight : keyword() : r!.matched; track $index) {@if (seg.hit) {<mark class="ng-draggable-tree-hit">{{ seg.text }}</mark>} @else {<span>{{ seg.text }}</span>}}</span>
+    } @else {
+      <span class="ng-draggable-tree-label" [class.is-highlight]="r!.matched">{{ displayText() }}</span>
+    }
+  </span>
+</div>
+@if (a!.isLoading(r!)) {
+<div [style.padding-inline-start.px]="(r!.depth + 1) * o!.levelIndent">
+  <tree-loading-component
+  class="tree-node-loading"
+  [template]="templates()?.loadingTemplate"
+  [row]="r!"></tree-loading-component>
+</div>
+} 

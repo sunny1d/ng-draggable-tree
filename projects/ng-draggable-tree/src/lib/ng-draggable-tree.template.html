@@ -1,0 +1,29 @@
+<div
+  #treeRoot
+  class="ng-draggable-tree-root"
+  [class.is-tree-dragging]="dragDropActive()"
+  [class.is-cross-drag-target]="externalDropTargetActive()"
+  [class.is-keyword-highlight]="keywordHighlightMode()"
+  [class.is-filter-flat]="filterFlatMode()"
+  [class.is-animated]="opts.animate"
+  role="none"
+  (keydown)="onTreeKeydown($event)">
+  @if (opts.dir === 'rtl') {
+  <div class="ng-draggable-tree-rtl-guard" aria-hidden="true"></div>
+  }
+
+  <cdk-tree
+    class="ng-draggable-tree-cdk"
+    [dataSource]="dataSource()"
+    [treeControl]="cdkControl()"
+    [trackBy]="trackByRow"
+    [expansionKey]="rowExpansionKey">
+    <ng-template cdkTreeNodeDef let-row>
+      <ng-draggable-tree-node [row]="row" [api]="rowApi" [opts]="opts" [keyword]="filterKeyword()" [templates]="templates()" />
+    </ng-template>
+  </cdk-tree>
+
+  @if (isEmpty()) {
+  <div class="ng-draggable-tree-empty">{{ opts.emptyMessage }}</div>
+  }
+</div>

@@ -1,0 +1,107 @@
+<div class="demo-page">
+  <header class="demo-hero">
+    <p class="demo-eyebrow">示例 01</p>
+    <h1>基础树：展开 / 折叠 / 键盘导航</h1>
+  </header>
+
+  <div class="demo-grid">
+    <div class="card">
+      <div class="card-head">
+        <h2>文件目录树</h2>
+        <div class="toolbar">
+          <button type="button" class="btn" (click)="expandAll()">全部展开</button>
+          <button type="button" class="btn" (click)="collapseAll()">全部折叠</button>
+          <button type="button" class="btn btn-primary" (click)="reset()">重置数据</button>
+        </div>
+      </div>
+      <div class="card-pad">
+        <div class="tree-viewport">
+          <ng-draggable-tree
+            #tree
+            [nodes]="data()"
+            [options]="options"
+            (expand)="onExpand($event)"
+            (collapse)="onCollapse($event)"
+            (click)="onClick($event)"
+            (contextMenu)="onContextMenu($event)"
+            (dragEnd)="onDragEnd($event)">
+            <ng-template #treeNodeTemplate let-node let-row="row">
+              <div style="display: flex;width: 100%;justify-content: space-between;">
+                <span>
+                  <img class="icon" [src]="'/assets/icon/'+ node.icon + '.png'" alt="" srcset="">
+                  {{ node.name }}
+                  </span>
+                <span class="chip" [class.is-accent]="row.selected">
+                  @if (row.node.parent; as parent) {
+                    <span class="chip" style="margin-inline-end: 4px;">上级 {{ parent.data.name }}</span>
+                  }
+                  {{ node.kind === 'folder' ? '目录' : '文件' }}
+                </span>
+              </div>
+            
+            </ng-template>
+
+            <!-- 右键菜单内容完全自定义（这里复用库提供的菜单样式类） -->
+            <ng-template #contextMenuTemplate let-node let-row="row" let-api="api" let-close="close">
+              <div class="ng-draggable-tree-menu" role="menu">
+                @if (!row.isLeaf) {
+                  <button
+                    type="button"
+                    role="menuitem"
+                    class="ng-draggable-tree-menu-item"
+                    (click)="api.onToggleExpand(row); close()"
+                  >
+                    {{ row.expanded ? '折叠' : '展开' }}
+                  </button>
+                }
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="ng-draggable-tree-menu-item"
+                  (click)="onMenuInfo(node); close()"
+                >
+                  记录「{{ node.name }}」
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="ng-draggable-tree-menu-item is-danger"
+                  (click)="api.onDelete(row); close()"
+                >
+                  删除节点
+                </button>
+              </div>
+            </ng-template>
+          </ng-draggable-tree>
+        </div>
+        <div class="tree-tip">
+          <span class="chip is-accent">当前可见 {{ tree.rowCount() }} 行</span>
+          <span class="chip"><span class="kbd">↑↓</span> 移动焦点</span>
+          <span class="chip"><span class="kbd">→</span> 展开</span>
+          <span class="chip"><span class="kbd">←</span> 折叠</span>
+          <span class="chip"><span class="kbd">Enter</span> 选中</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="side-stack">
+      <app-event-log [entries]="logs()" (clear)="clearLogs()" />
+
+      <div class="card card-pad">
+        <h2 class="card-sub">本页配置</h2>
+        <ul class="note-list">
+          <li>idField 指向字段 id,</li>
+          <li>childrenField 指向字段 children</li>
+          <li>showLine 开启父子连接线</li>
+          <li>levelIndent 指定层级每层缩进的像素值</li>
+          <li>selectOnClick 点击选中节点（单选）</li>
+          <li>multiSelect 开启shift/ctrl多选</li>
+          <li>treeNodeTemplate 自定义节点内容（目录/文件标识）</li>
+          <li>allowDrag 允许拖动</li>
+          <li>allowDrop 满足条件允许放置</li>
+          <li>contextMenuTemplate 自定义右键行弹出菜单内容</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</div>

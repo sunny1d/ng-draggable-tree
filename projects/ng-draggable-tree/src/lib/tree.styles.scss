@@ -1,0 +1,557 @@
+/* ==========================================================================
+   ngx-cdk-tree 主题样式（所有类均带 .ng-draggable-tree- 前缀以避免污染宿主页面）
+   可在使用时通过覆盖 CSS 变量定制主题 / 暗色模式
+   ========================================================================== */
+
+.ng-draggable-tree-root {
+  /* ---------- CSS 变量（可覆盖） ---------- */
+  --ng-draggable-tree-font: inherit;
+  --ng-draggable-tree-fg: #333;
+  --ng-draggable-tree-fg-muted: #999;
+  --ng-draggable-tree-bg: transparent;
+  --ng-draggable-tree-row-hover: rgba(0, 0, 0, 0.05);
+  --ng-draggable-tree-row-active: rgba(13, 110, 253, 0.1);
+  --ng-draggable-tree-row-selected: rgba(13, 110, 253, 0.18);
+  --ng-draggable-tree-accent: #0d6efd;
+  --ng-draggable-tree-border: #d9d9d9;
+  --ng-draggable-tree-radius: 4px;
+  --ng-draggable-tree-highlight-bg: rgba(255, 213, 0, 0.45);
+  --ng-draggable-tree-drop: #0d6efd;
+  --ng-draggable-tree-menu-bg: #fff; /* 右键菜单背景 */
+  --ng-draggable-tree-size: 40px; /* 行高 */
+  --ng-draggable-tree-arrow-width: 16px;
+
+  display: block;
+  position: relative;
+  box-sizing: border-box;
+  min-height: 24px;
+  max-height: inherit;
+  height: 100%;
+  overflow: auto;
+  color: var(--ng-draggable-tree-fg);
+  font: var(--ng-draggable-tree-font);
+  text-align: start;
+  direction: var(--ng-draggable-tree-dir, ltr);
+  font-size: 14px;
+  line-height: 1.5;
+  background: var(--ng-draggable-tree-bg);
+}
+
+.ng-draggable-tree-root *,
+.ng-draggable-tree-root *::before,
+.ng-draggable-tree-root *::after {
+  box-sizing: border-box;
+}
+
+.ng-draggable-tree-cdk {
+  display: block;
+  min-width: max-content;
+}
+
+.ng-draggable-tree-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--ng-draggable-tree-fg-muted);
+  font-size: 12px;
+}
+
+/* ---------------- 行 ---------------- */
+
+.ng-draggable-tree-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: var(--ng-draggable-tree-size);
+  height: var(--ng-draggable-tree-size);
+  padding-inline-end: 8px;
+  white-space: nowrap;
+  user-select: none;
+  outline: none;
+  transition: background-color 120ms ease;
+  border-radius: var(--ng-draggable-tree-radius);
+}
+
+.ng-draggable-tree-row:hover {
+  background: var(--ng-draggable-tree-row-hover);
+}
+
+.ng-draggable-tree-row.is-focused {
+  // background: var(--ng-draggable-tree-row-active);
+  box-shadow: inset 0 0 0 1px var(--ng-draggable-tree-accent);
+}
+
+.ng-draggable-tree-row.is-selected {
+  background: var(--ng-draggable-tree-row-selected);
+}
+
+.ng-draggable-tree-row.is-match .ng-draggable-tree-label {
+  color: var(--ng-draggable-tree-accent);
+}
+
+.ng-draggable-tree-label.is-highlight {
+  background: var(--ng-draggable-tree-highlight-bg);
+  border-radius: 2px;
+  padding: 0 2px;
+  box-shadow: inset 0 -1px 0 currentColor;
+}
+
+// 只高亮匹配词（highlightMode: 'keyword'，默认）：仅命中的子串渲染为 <mark class="ng-draggable-tree-hit">，
+// 在此作用域内覆盖 .is-match 的整标签着色（类名钩子保留供自定义样式使用）。
+.ng-draggable-tree-root.is-keyword-highlight .ng-draggable-tree-row.is-match .ng-draggable-tree-label {
+  color: inherit;
+}
+
+.ng-draggable-tree-hit {
+  background: var(--ng-draggable-tree-highlight-bg);
+  color: inherit;
+  border-radius: 2px;
+  box-shadow: inset 0 -1px 0 currentColor;
+}
+
+// 分支内含命中（自身或后代）：箭头着色，提示分支内有命中
+.ng-draggable-tree-root.is-keyword-highlight .ng-draggable-tree-row.is-child-match .ng-draggable-tree-toggle {
+  color: var(--ng-draggable-tree-accent);
+}
+
+// 扁平结果集（autoShow: false）：只展示命中节点自身，结果行不展示箭头、不画连接线，仍按原始 depth 缩进。
+// 需要完全扁平（按结果列表排布）可在该作用域内覆盖行内边距：
+//   .is-filter-flat .ng-draggable-tree-row { padding-inline-start: 0 !important; }
+
+.ng-draggable-tree-content {
+  display: inline-flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+}
+
+.ng-draggable-tree-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+  max-width: 100%;
+}
+
+/* 新增行（展开 / 过滤 / 数据变化）的一次性进入动画，由 TreeOptions.animate 控制。
+   用 translate 而非 transform：拖拽行上的 transform 被 !important 锁定，动画不能抢占它 */
+@keyframes ng-draggable-tree-row-in {
+  from {
+    opacity: 0;
+    translate: 0 -6px;
+  }
+}
+
+.ng-draggable-tree-root.is-animated .ng-draggable-tree-row.is-entering {
+  animation: ng-draggable-tree-row-in 160ms ease-out;
+}
+
+.ng-draggable-tree-row.is-dragging {
+  opacity: 0.45;
+}
+
+/* 可拖拽行在未拖拽时悬停提示“可拖拽” */
+.ng-draggable-tree-row.is-grabbable {
+  cursor: grab;
+}
+.ng-draggable-tree-row.is-grabbable:active {
+  cursor: grabbing;
+}
+
+/* 拖拽进行中：树区域整体呈“抓取中”；被判定不可放置的目标行显示“禁止操作” */
+.ng-draggable-tree-root.is-tree-dragging {
+  cursor: move;
+}
+.ng-draggable-tree-root.is-tree-dragging .ng-draggable-tree-row.is-drop-forbidden {
+  cursor: not-allowed;
+}
+
+/* 跨树拖拽：作为接收目标被指针悬停时整树高亮（仅同 dragGroup 且启用跨树的两棵树之间出现） */
+.ng-draggable-tree-root.is-cross-drag-target {
+  outline: 1.5px dashed var(--ng-draggable-tree-accent, #0d6efd);
+  outline-offset: -2px;
+  background: var(--ng-draggable-tree-row-active, rgba(13, 110, 253, 0.1));
+}
+
+/* 拖拽中的行不做 transform 移动（预览 ghost 由 CDK 独立呈现） */
+.ng-draggable-tree-row.cdk-drag,
+.ng-draggable-tree-row.cdk-drag:active {
+  transform: none !important;
+}
+
+/* ---------------- 连接线 ---------------- */
+
+.ng-draggable-tree-line {
+  display: inline-flex;
+  align-items: stretch;
+  height: var(--ng-draggable-tree-size);
+  position: absolute;
+  left: 0px;
+}
+
+.ng-draggable-tree-line-seg {
+  position: relative;
+  display: inline-block;
+  height: 100%;
+}
+
+.ng-draggable-tree-line-seg.is-on::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--ng-draggable-tree-arrow-width, 15px) / 2);
+  width: 1px;
+  background: var(--ng-draggable-tree-border);
+  height: 100%;
+}
+
+/* ---------------- 展开箭头 ---------------- */
+
+.ng-draggable-tree-toggle,
+.ng-draggable-tree-toggle-spacer {
+  flex: 0 0 var(--ng-draggable-tree-arrow-width, 30px);
+  width: var(--ng-draggable-tree-arrow-width, 30px);
+  height: var(--ng-draggable-tree-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ng-draggable-tree-toggle {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  color: var(--ng-draggable-tree-fg-muted);
+  border-radius: 3px;
+}
+
+.ng-draggable-tree-toggle:hover {
+  background: rgba(0, 0, 0, 0.07);
+  color: var(--ng-draggable-tree-fg);
+}
+
+/* 锁定态箭头（过滤视图下被强制展开的分支）：只作状态指示，不可折叠 */
+.ng-draggable-tree-toggle.is-locked,
+.ng-draggable-tree-toggle.is-locked:hover {
+  cursor: not-allowed;
+  background: transparent;
+  color: var(--ng-draggable-tree-fg-muted);
+}
+
+.ng-draggable-tree-caret {
+  width: 0;
+  height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+}
+
+/* 展开/收起时箭头平滑旋转（TreeOptions.animate） */
+.ng-draggable-tree-root.is-animated .ng-draggable-tree-caret {
+  transition: transform 120ms ease;
+}
+
+.ng-draggable-tree-caret.is-open {
+  transform: rotate(90deg);
+}
+
+.ng-draggable-tree-toggle-spacer {
+  pointer-events: none;
+}
+
+.ng-draggable-tree-spinner {
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  border-top-color: var(--ng-draggable-tree-accent);
+  border-radius: 50%;
+  width: 12px;
+  height: 12px;
+  animation: ng-draggable-tree-spin 0.8s linear infinite;
+}
+
+@keyframes ng-draggable-tree-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------------- 复选框 ---------------- */
+
+.ng-draggable-tree-checkbox,
+.ng-draggable-tree-checkbox-spacer {
+  flex: 0 0 22px;
+  width: 22px;
+  height: var(--ng-draggable-tree-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ng-draggable-tree-checkbox {
+  cursor: pointer;
+}
+
+.ng-draggable-tree-checkbox-box {
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid #8a8f98;
+  border-radius: 3px;
+  position: relative;
+  background: #fff;
+}
+
+.ng-draggable-tree-checkbox-box.is-checked {
+  background: var(--ng-draggable-tree-accent);
+  border-color: var(--ng-draggable-tree-accent);
+}
+
+.ng-draggable-tree-checkbox-box.is-checked::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.ng-draggable-tree-checkbox-box.is-indeterminate {
+  background: var(--ng-draggable-tree-accent);
+  border-color: var(--ng-draggable-tree-accent);
+}
+
+.ng-draggable-tree-checkbox-box.is-indeterminate::after {
+  content: '';
+  position: absolute;
+  inset: 0 3px;
+  top: 6px;
+  height: 2px;
+  background: #fff;
+}
+
+/* ---------------- 操作按钮（悬停显现） ---------------- */
+
+.ng-draggable-tree-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-inline-start: 6px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.ng-draggable-tree-row:hover .ng-draggable-tree-actions,
+.ng-draggable-tree-row:focus-within .ng-draggable-tree-actions,
+.ng-draggable-tree-actions:focus-within {
+  opacity: 1;
+}
+
+.ng-draggable-tree-action {
+  border: 0;
+  background: transparent;
+  color: var(--ng-draggable-tree-fg-muted);
+  width: 20px;
+  height: 18px;
+  border-radius: 3px;
+  padding: 0;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  text-align: center;
+}
+
+.ng-draggable-tree-action:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--ng-draggable-tree-fg);
+}
+
+.ng-draggable-tree-grip {
+  cursor: grab;
+  color: var(--ng-draggable-tree-fg-muted);
+  font-size: 12px;
+  letter-spacing: -2px;
+  padding: 0 2px;
+  touch-action: none;
+}
+
+/* ---------------- 右键菜单（#contextMenuTemplate，样式类可供自定义内容复用） ---------------- */
+
+/*
+ * Overlay 面板容器：只负责圆角 + 阴影（菜单浮在 overlay 容器里，脱离树根，
+ * 主题变量由组件在打开时内联到宿主，见 applyMenuThemeVars）。
+ * 需要换外观可直接覆盖 .ng-draggable-tree-menu-panel。
+ */
+.ng-draggable-tree-menu-panel {
+  border-radius: var(--ng-draggable-tree-radius, 4px);
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.18),
+    0 0 0 1px var(--ng-draggable-tree-border, #d9d9d9);
+}
+
+/* 菜单容器外观（自定义菜单内容可直接复用这些类） */
+.ng-draggable-tree-menu {
+  min-width: 140px;
+  max-width: 320px;
+  padding: 4px;
+  border-radius: var(--ng-draggable-tree-radius, 4px);
+  background: var(--ng-draggable-tree-menu-bg, #fff);
+  color: var(--ng-draggable-tree-fg, #333);
+  font: var(--ng-draggable-tree-font, inherit);
+  font-size: 13px;
+  text-align: start;
+}
+
+.ng-draggable-tree-menu-item {
+  display: block;
+  width: 100%;
+  border: 0;
+  padding: 6px 10px;
+  border-radius: calc(var(--ng-draggable-tree-radius, 4px) - 1px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ng-draggable-tree-menu-item:hover {
+  background: var(--ng-draggable-tree-row-hover, rgba(0, 0, 0, 0.05));
+}
+
+.ng-draggable-tree-menu-item:focus-visible {
+  outline: 2px solid var(--ng-draggable-tree-accent, #0d6efd);
+  outline-offset: -1px;
+}
+
+.ng-draggable-tree-menu-item.is-danger {
+  color: #dc3545;
+}
+
+.ng-draggable-tree-menu-item.is-danger:hover {
+  background: rgba(220, 53, 69, 0.1);
+}
+
+/* 自定义菜单模板（#contextMenuTemplate）的宿主容器基础观感 */
+.ng-draggable-tree-menu-custom {
+  display: inline-block;
+  font: var(--ng-draggable-tree-font, inherit);
+  color: var(--ng-draggable-tree-fg, inherit);
+  text-align: start;
+}
+
+/* ---------------- 拖拽放置指示 ---------------- */
+
+.is-drop-before>.ng-draggable-tree-content {
+  box-shadow: inset 0 2px 0 0 var(--ng-draggable-tree-drop);
+}
+
+ .is-drop-after>.ng-draggable-tree-content {
+  box-shadow: inset 0 -2px 0 0 var(--ng-draggable-tree-drop);
+}
+
+.ng-draggable-tree-row.is-drop-child {
+  outline: 2px solid var(--ng-draggable-tree-drop);
+  outline-offset: -2px;
+  background: rgba(13, 110, 253, 0.08);
+}
+
+/* 被判定不可放置的行（本树与跨树目标树通用；源树内悬停时另有 not-allowed cursor） */
+.ng-draggable-tree-row.is-drop-forbidden {
+  cursor: not-allowed;
+  outline: 2px solid rgba(220, 53, 69, 0.55);
+  outline-offset: -2px;
+}
+
+/* 拖拽幽灵：由组件克隆被拖行自绘（CDK 自由拖拽不创建预览） */
+.ng-draggable-tree-drag-ghost {
+  border-radius: var(--ng-draggable-tree-radius, 4px);
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.2),
+    0 0 0 1px var(--ng-draggable-tree-border, #d9d9d9);
+  cursor: grabbing;
+}
+
+/* 多选拖拽：为右侧节点数角标预留空间（内容随之收窄，避免角标遮住文本） */
+.ng-draggable-tree-drag-ghost.is-multi {
+  padding-inline-end: 32px;
+}
+
+/* 多选拖拽：幽灵右侧的节点数角标 */
+.ng-draggable-tree-drag-ghost .ng-draggable-tree-drag-count {
+  position: absolute;
+  top: 50%;
+  inset-inline-end: 7px;
+  transform: translateY(-50%);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--ng-draggable-tree-accent, #0d6efd);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* 自定义拖拽幽灵（#dragGhostTemplate 模式）的宿主容器基础观感 */
+.ng-draggable-tree-drag-ghost-custom {
+  display: inline-block;
+  font: var(--ng-draggable-tree-font, inherit);
+  color: var(--ng-draggable-tree-fg, inherit);
+  text-align: start;
+}
+
+/* ---------------- 暗色主题示例（.ng-draggable-tree-dark 下启用） ---------------- */
+
+.ng-draggable-tree-root.ng-draggable-tree-dark {
+  --ng-draggable-tree-fg: #e6e6e6;
+  --ng-draggable-tree-fg-muted: #8b8b8b;
+  --ng-draggable-tree-row-hover: rgba(255, 255, 255, 0.06);
+  --ng-draggable-tree-row-active: rgba(96, 165, 250, 0.15);
+  --ng-draggable-tree-row-selected: rgba(96, 165, 250, 0.28);
+  --ng-draggable-tree-accent: #60a5fa;
+  --ng-draggable-tree-border: #4a4a4a;
+  --ng-draggable-tree-highlight-bg: rgba(255, 200, 60, 0.35);
+  --ng-draggable-tree-menu-bg: #2c2c2c;
+  background: #1e1e1e;
+}
+
+.ng-draggable-tree-root.ng-draggable-tree-dark .ng-draggable-tree-checkbox-box {
+  background: #2c2c2c;
+  border-color: #5a5a5a;
+}
+
+.ng-draggable-tree-root.ng-draggable-tree-dark .ng-draggable-tree-checkbox-box.is-checked,
+.ng-draggable-tree-root.ng-draggable-tree-dark .ng-draggable-tree-checkbox-box.is-indeterminate {
+  background: var(--ng-draggable-tree-accent);
+  border-color: var(--ng-draggable-tree-accent);
+}
+
+/* 通用可访问性 */
+.ng-draggable-tree-toggle:focus-visible,
+.ng-draggable-tree-action:focus-visible,
+.ng-draggable-tree-checkbox:focus-visible .ng-draggable-tree-checkbox-box {
+  outline: 2px solid var(--ng-draggable-tree-accent);
+  outline-offset: -1px;
+}
+
+@media (forced-colors: active) {
+  .ng-draggable-tree-row.is-drop-child {
+    outline: 3px solid Highlight;
+  }
+}
+
+/* 系统开启「减少动态效果」时不做展开动画 */
+@media (prefers-reduced-motion: reduce) {
+  .ng-draggable-tree-root.is-animated .ng-draggable-tree-row.is-entering,
+  .ng-draggable-tree-root.is-animated .ng-draggable-tree-caret {
+    animation: none;
+    transition: none;
+  }
+}

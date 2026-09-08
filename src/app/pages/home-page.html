@@ -1,0 +1,61 @@
+<div class="demo-page">
+  <section class="hero">
+    <p class="hero-kicker">ANGULAR CDK TREE 的组件化封装</p>
+    <h1>ng-draggable-tree</h1>
+    <p class="lead">
+      基于 <code>@angular/cdk/tree</code> 的树形组件库：扁平化渲染、三态复选框、子节点懒加载、
+      拖拽排序与实时过滤。数据原地修改并回写 <code>[(nodes)]</code>，绑定值与数据源始终同一份。
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" routerLink="/basic">快速上手</a>
+      <a class="btn" routerLink="/checkbox">浏览能力</a>
+    </div>
+  </section>
+
+  <h2 class="section-title">交互能力演示</h2>
+  <p class="section-sub">以下页面均为可真实操作、可修改源码的示例，请逐个体验。</p>
+  <div class="feature-grid">
+    @for (feature of features; track feature.path) {
+      <a class="feature-card" [routerLink]="feature.path">
+        <span class="feature-num">{{ $index + 1 }}</span>
+        <h3>{{ feature.title }}</h3>
+        <p>{{ feature.desc }}</p>
+        <span class="feature-arrow">开始体验</span>
+      </a>
+    }
+  </div>
+
+  <h2 class="section-title">快速上手</h2>
+  <pre class="code-block"><span class="cm">// 1. 构建库并发布 / 安装（见根目录 package.json scripts.publish）</span>
+npm run build:lib   <span class="cm"># ng build ng-draggable-tree</span>
+
+<span class="cm">// 2. 在组件中引入（本示例仓库通过 tsconfig paths 指向库源码 public-api）</span>
+import &#123; NgDraggableTreeComponent, type TreeOptions &#125; from 'ng-draggable-tree';
+import &#123; Component, signal &#125; from '@angular/core';
+
+interface Node &#123; id: string; name: string; children?: Node[]; &#125;
+
+@Component(&#123;
+  selector: 'app-demo',
+  imports: [NgDraggableTreeComponent],
+  template: '&lt;ng-draggable-tree [(nodes)]="nodes" [options]="options" /&gt;',
+&#125;)
+export class Demo &#123;
+  readonly nodes = signal&lt;Node[]&gt;([
+    &#123; id: '1', name: '项目', children: [&#123; id: '1-1', name: 'src' &#125;] &#125;,
+    &#123; id: '2', name: '文档' &#125;,
+  ]);
+  readonly options: TreeOptions&lt;Node&gt; = &#123;
+    idField: 'id',
+    displayField: 'name',
+    childrenField: 'children',
+    hasChildrenField: 'hasChildren',
+    showLine: true,
+  &#125;;
+&#125;</pre>
+
+  <p class="section-sub">
+    更多 API（懒加载 / 复选框 / 拖拽 / 事件回调等）请查阅
+    <code>projects/ng-draggable-tree/README.md</code> 与各示例页面侧栏说明。
+  </p>
+</div>

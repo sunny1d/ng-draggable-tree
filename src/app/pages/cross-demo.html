@@ -1,0 +1,78 @@
+<div class="demo-page">
+  <header class="demo-hero">
+    <p class="demo-eyebrow">示例 07</p>
+    <h1>跨树拖拽</h1>
+  </header>
+
+  <div class="card card-pad toolbar-row">
+    <span style="flex: 1"></span>
+    <button type="button" class="btn" (click)="emptyRight()">清空右侧</button>
+    <button type="button" class="btn btn-primary" (click)="reset()">重置</button>
+  </div>
+
+  <div class="duo">
+    <div class="card">
+      <div class="card-head">
+        <h2>左侧 · 资料库（拖出源）</h2>
+        <div class="toolbar">
+          <span class="chip">可见 {{ leftTree.rowCount() }} 行</span>
+        </div>
+      </div>
+      <div class="card-pad">
+        <div class="tree-viewport tall">
+          <ng-draggable-tree
+            #leftTree
+            [nodes]="leftData()"
+            [options]="leftOptions()"
+            (dataChange)="onLeftData($event)"
+            (dragStart)="onDragStart('left', $event)"
+            (dragEnd)="onDragEnd('left', $event)"
+          />
+        </div>
+        <div class="tree-tip">
+          <span class="chip is-accent">dragEnd 里按默认 {{ mode() }} 执行落位</span>
+          <span class="chip">把节点拖到右侧树区域验证跨树放置</span>
+          <span class="chip">跨树 move/copy 由页面在 dragEnd 中完成</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>右侧 · 已发布目录（接收目标）</h2>
+        <div class="toolbar">
+          <span class="chip">可见 {{ rightTree.rowCount() }} 行</span>
+        </div>
+      </div>
+      <div class="card-pad">
+        <div class="tree-viewport tall">
+          <ng-draggable-tree
+            #rightTree
+            [nodes]="rightData()"
+            [options]="rightOptions()"
+            (dataChange)="onRightData($event)"
+            (dragStart)="onDragStart('right', $event)"
+            (dragEnd)="onDragEnd('right', $event)"
+          />
+        </div>
+        <div class="tree-tip">
+          <span class="chip is-accent">被悬停时整树蓝色虚线高亮</span>
+          <span class="chip">文件节点不可作为容器（allowDrop 同样生效）</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="demo-grid1">
+    <div class="side-stack">
+      <app-event-log [entries]="logs()" (clear)="clearLogs()" />
+    </div>
+       <div class="card card-pad">
+        <h2 class="card-sub">当前规则</h2>
+        <ul class="note-list">
+          <li>dragGroup：两棵树中值相同可以相互拖拽</li>
+          <li>crossTree：move允许跨树拖拽 </li>
+        </ul>
+      </div>
+  </div>
+</div>
