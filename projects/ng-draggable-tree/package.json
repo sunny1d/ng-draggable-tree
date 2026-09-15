@@ -1,9 +1,30 @@
 {
   "name": "ng-draggable-tree",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "description": "基于 @angular/cdk/tree 的 Angular 树组件：扁平化渲染、三态复选框、懒加载、拖拽排序与实时过滤",
+  "keywords": [
+    "angular",
+    "tree",
+    "cdk-tree",
+    "draggable",
+    "lazy-load",
+    "checkbox"
+  ],
+  "homepage": "https://github.com/sunny1d/ng-draggable-tree#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sunny1d/ng-draggable-tree.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sunny1d/ng-draggable-tree/issues"
+  },
+  "author": "sunny Wang <sunny.wang@surpassdata.com>",
+  "license": "MIT",
   "peerDependencies": {
     "@angular/common": "^22.1.0",
-    "@angular/core": "^22.1.0"
+    "@angular/core": "^22.1.0",
+    "@angular/cdk": "^22.1.0",
+    "rxjs": "^7.8.0"
   },
   "dependencies": {
     "tslib": "^2.3.0"

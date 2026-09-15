@@ -8,7 +8,7 @@
 而**展开 / 折叠不重构树**（唯一例外是展开触发懒加载并拿到子节点）。需要与数据源隔离的
 副本请用 `tree.snapshot()`。
 
-- 兼容 Angular >= 17（signal API 构建；本仓库使用 Angular 22 验证）
+- 兼容 Angular >= 22.1.0（signal API 构建；本仓库使用 Angular 22 验证）
 - 渲染核心：`CdkTree` + `FlatTreeControl` + `ArrayDataSource`
 
 ## 安装

@@ -12,7 +12,7 @@
     "test:lib": "ng test ng-draggable-tree --watch=false",
     "test:demo": "ng test ngx-cdk-tree-workspace --watch=false",
     "pack:lib": "ng build ng-draggable-tree && cd dist/ng-draggable-tree && npm pack",
-    "publish:lib": "ng build ng-draggable-tree && cd dist/ng-draggable-tree && npm publish"
+    "publish:lib": "ng build ng-draggable-tree && cd dist/ng-draggable-tree && npm publish --registry https://registry.npmjs.org --access public"
   },
   "private": true,
   "packageManager": "npm@11.12.1",
