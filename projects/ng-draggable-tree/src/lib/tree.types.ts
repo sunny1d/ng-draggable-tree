@@ -1,15 +1,14 @@
-import type { Observable } from 'rxjs';
-
 /** 树节点的唯一键类型 */
 export type TreeKey = string | number;
 
-/** 子节点数据来源：数组 / 空 / Promise / Observable（懒加载） */
-export type ChildrenSource<T> =
-  | T[]
-  | null
-  | undefined
-  | Promise<T[] | null | undefined>
-  | Observable<T[] | null | undefined>;
+/**
+ * `childrenField` 字段的读取结果：只有「数组（子级已加载）」与「空值（无子级）」两种。
+ *
+ * `childrenField` 只能是字段名——该字段是普通数据槽（懒加载结果也写回这里），
+ * 字段值不是数组时一律按「无已加载子级」处理；真正的懒加载来源是
+ * `hasChildrenField` 标记与全局 `loadChildren`。
+ */
+export type ChildrenSource<T> = T[] | null | undefined;
 
 /** 子节点读取函数 */
 export type ChildrenAccessor<T> = (node: T) => ChildrenSource<T>;

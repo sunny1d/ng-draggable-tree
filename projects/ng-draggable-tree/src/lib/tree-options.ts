@@ -25,16 +25,18 @@ export interface TreeOptions<T = unknown> {
   /**
    * 子节点数组所在字段名，默认 `'children'`。**只接受字段名字符串**（不像 idField / displayField 能传函数）。
    *
-   * 该字段的**值**决定子级来源：数组 = 已加载；函数 `(node) => …` = 调用它（返回值可为数组 /
-   * `Promise` / `Observable`）；`Promise` / `Observable` = 首次展开时订阅取子级。详见「子节点懒加载」。
+   * 该字段是子节点的**数据槽**：值必须是数组（含空数组）或空值；非数组的值一律按「无子级」处理，
+   * 懒加载结果同样写回这里。懒加载本身不靠字段值表达，而是由 {@link hasChildrenField} 标记
+   * 与 {@link loadChildren} 提供来源。详见「子节点懒加载」。
    */
   childrenField?: string;
 
   /**
    * “是否有子节点”标记字段名，默认 `'hasChildren'`。
    *
-   * 只影响「是否显示展开箭头 / 是否按待加载分支处理」，**不提供子级来源**：
-   * 值严格为 `true` → 待加载；严格为 `false` → 直接按叶子处理（即使配了 loadChildren）；
+   * 表达「子级尚未加载但存在」，**不提供拉取能力**（拉取由 {@link loadChildren} 负责）：
+   * 值严格为 `true` → 待加载（展示展开按钮，首次展开发起加载）；
+   * 严格为 `false` → 直接按叶子处理（即使配了 loadChildren）；
    * 字段缺失时看是否配了 {@link loadChildren}。
    */
   hasChildrenField?: string;
@@ -185,7 +187,10 @@ export interface NormalizedTreeOptions<T = unknown> {
    * 子节点尚未加载时用于判定展开按钮与懒加载来源。
    */
   getHasChildren: (node: T) => boolean;
-  /** 某节点是否具备“首次展开拉取”的潜在子节点来源（字段函数 / 字段 Promise|Observable / hasChildrenField 标记 / 全局 loadChildren） */
+  /**
+   * 某节点是否具备“首次展开拉取”的潜在子节点来源。
+   * children 字段只是数据槽（字段值不作为来源），因此来源仅两种：hasChildrenField 标记 / 全局 loadChildren。
+   */
   isLazyNode: (node: T) => boolean;
   levelIndent: number;
   useCheckbox: boolean;
@@ -216,11 +221,6 @@ export interface NormalizedTreeOptions<T = unknown> {
   dir: 'ltr' | 'rtl';
   /** 空数据文案（见 TreeOptions.emptyMessage，默认 '暂无数据'） */
   emptyMessage: string;
-}
-
-/** 是否异步源 */
-export function isAsyncChildren(v: unknown): v is Promise<unknown> | Observable<unknown> {
-  return !!v && (typeof (v as Promise<unknown>).then === 'function' || typeof (v as Observable<unknown>).subscribe === 'function');
 }
 
 /** 按字段名或函数解析访问器；两者皆无时使用 defaultName */
@@ -260,33 +260,22 @@ export function normalizeOptions<T>(options: TreeOptions<T> | null | undefined):
     typeof o.childrenField === 'string' && o.childrenField.length > 0 ? o.childrenField : 'children';
   const idStorage: string | null = typeof o.idField === 'function' ? null : o.idField ?? 'id';
 
+  // childrenField 只能是字段名，该字段只是数据槽：值必须是数组，其余（空值或非数组）一律按无子级
   const getChildren: ChildrenAccessor<T> = (node) => {
     const value = (node as unknown as Record<PropertyKey, unknown>)[childrenStorage];
-    if (Array.isArray(value)) {
-      return value as T[];
-    }
-    if (value === undefined || value === null) {
-      return null;
-    }
-    // 字段值本身为 Promise/Observable => 逐节点懒加载
-    return isAsyncChildren(value)
-      ? (value as Promise<T[] | null | undefined> | Observable<T[] | null | undefined>)
-      : null;
+    return Array.isArray(value) ? (value as T[]) : null;
   };
 
   // “是否有子节点”标记：仅严格 true 视为有子节点，字段缺失按叶子处理
   const getHasChildrenRaw = accessor<T, unknown>(o.hasChildrenField, 'hasChildren');
   const getHasChildren = (node: T): boolean => getHasChildrenRaw(node) === true;
 
+  // 懒加载来源只有两种（children 字段只是数据槽，字段值不作为来源）：
+  // 数据显式标记“有子节点”，或标记缺失时由全局加载器兜底（整棵树由后端驱动）
   const isLazyNode = (node: T): boolean => {
-    const raw = (node as unknown as Record<PropertyKey, unknown>)[childrenStorage];
-    // 字段值为函数 / Promise / Observable：逐节点懒加载
-    if (typeof raw === 'function' || isAsyncChildren(raw)) return true;
-    // 数据显式标记“有/无子节点”时以标记为准：true 待加载，false 直接当叶子
     const flag = getHasChildrenRaw(node);
     if (flag === true) return true;
     if (flag === false) return false;
-    // 无标记时由全局加载器兜底（整棵树由后端驱动）
     return !!o.loadChildren;
   };
 

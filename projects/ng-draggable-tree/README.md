@@ -152,8 +152,8 @@ interface TreeLoadChildrenEvent<T> { node: T; nodeId: TreeKey | null; children: 
 ## 公开方法
 
 ```ts
-tree.expandAll();            // 展开所有已加载分支（纯状态写入，不发起加载）
-tree.expandAllRecursive(): Promise<void>; // 递归展开：逐层触发懒加载并展开到最深层
+tree.expandAll();            // 展开全部父节点；待拉取分支只补一层子级（void，内部异步推进）
+tree.expandAllRecursive(): Promise<void>; // 逐层展开并加载，直到最深层才 resolve
 tree.collapseAll();          // 全部折叠
 tree.expandNode(id);         // 展开指定节点（懒加载节点会触发加载）
 tree.collapseNode(id);       // 折叠指定节点
@@ -197,23 +197,36 @@ const options: TreeOptions<Node> = {
 };
 ```
 
-`childrenField` 本身只能是**字段名字符串**（不像 `idField` / `displayField` 能传取值函数），
-可变的只是该字段的**值**。
+`childrenField` 只能是**字段名字符串**（不像 `idField` / `displayField` 能传取值函数），它指向的
+字段只是**数据槽**：值必须是数组（含空数组）或空值，非数组的值一律按「无子级」处理；懒加载结果也写回该字段。
+因此**懒加载来源与字段值无关**，只有两种（均为「首次展开才拉取、之后复用缓存」）：
 
-**子级来源**按以下顺序解析，均为「首次展开才拉取、之后复用缓存」：
+1. `hasChildrenField` 标记为 `true`：数据显式声明“还有子级”（`false` 则直接按叶子处理）
+2. 无标记时，才由全局 `loadChildren` 兜底
 
-1. `childrenField` 指向的字段值：数组（已加载，直接用） 
-2. 以上拿不到来源时，才用全局 `loadChildren`
-
-**一次性展开整棵懒加载树**：`expandAll()` 只展开已加载分支（不发起请求），所以对懒加载树只能
-展开当前已就位的那一层。要“一直展开到最深层”请用 `expandAllRecursive()`：
+**展开整棵懒加载树**：两者都会把全部父节点（有子数据的分支、`children` 为空数组的分支、尚未拉取的
+懒加载分支）写入展开集合，区别在**往下加载多少层**：
 
 ```ts
-await tree.expandAllRecursive();   // 层内并发、层间串行，全部落定后 resolve
+tree.expandAll();                  // 补一层：给当前已知的待拉取分支各拉一次子级，新分支保持折叠
+await tree.expandAllRecursive();   // 逐层到底：每加载出一层就展开并继续下钻，全部落定后 resolve
 ```
 
-它逐层对**尚未请求过**的懒加载分支拉取子级；已请求过的分支（含返回空数组的）不会重复请求，因此可安全地
-重复调用。由于每次加载子节点成功都会回写数据源，加载过程中会依次发出多次 `loadChildren` / `dataChange`。
+`expandAll()` 不会把加载出来的新分支纳入展开集合，所以它们仍显示为折叠态（各自带箭头），再点一次箭头或
+调用 `expandAllRecursive()` 才会继续往下。两者只对**尚未请求过**的分支拉取子级；已请求过的分支
+（含返回空数组的）不会重复请求，因此可安全地重复调用。由于每次加载子节点成功都会回写数据源，
+加载过程中会依次发出多次 `loadChildren` / `dataChange`。
+
+**父节点身份与加载状态是解耦的**（行模型三个字段各管一件事）：
+
+| 字段 | 含义 |
+| --- | --- |
+| `row.hasChildren` | 是否是父节点：有子级即为 `true`——已有已加载子节点，或存在待拉取的来源（`hasChildrenField` 标记 / `loadChildren` 兜底）。**只看有没有子级，不看数据到位与否** |
+| `row.isLeaf` | 即 `!hasChildren`：没有子级才是叶子，与「是否加载过」「加载回来的结果是什么」无关 |
+| `row.needLazyLoad` | 是父节点、但子节点尚未拉取且未被确认为空目录：为真时**首次展开会先发起一次加载**；不需要懒加载或已加载过恒为 `false`（不再重复请求） |
+| `row.expanderVisible` | 父节点即 `true`；唯一例外是「只展示命中节点自身」的过滤视图（`autoShow: false`），该视图恒为 `false` |
+
+因此**空目录**（拉取结果为空）始终是父节点：折叠展开按钮保留，可正常收起、再次展开，只是不再发起请求。
 
 ### 复选框：三态级联 / 独立勾选
 
@@ -525,7 +538,7 @@ tree.updateRow('2', { name: '临时' }, { emit: false });
 
 ### 行模型与 TreeNode 视图（`row.node`）
 
-行模型 `TreeRow<T>` 除 `depth / expanded / isLeaf / expanderVisible / selected / checked …` 等展示字段外，
+行模型 `TreeRow<T>` 除 `depth / expanded / isLeaf / needLazyLoad / expanderVisible / selected / checked …` 等展示字段外，
 还挂了一个轻量 **TreeNode 视图** `row.node`，把「节点在树中的位置 + 状态」以树语义暴露出来：
 
 | 成员 | 说明 |

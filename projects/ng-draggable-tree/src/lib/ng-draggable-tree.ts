@@ -1084,13 +1084,15 @@ export class NgDraggableTreeComponent<T = unknown> implements OnChanges, AfterVi
   // ==================== 展开 / 折叠 ====================
 
   /**
-   * 切换行的展开/折叠。以“展开集合（expandedIds）是否含该行”为唯一依据，
+   * 切换行的展开/折叠。以“展开集合（expandedIds）是否含该行”为依据，
    * 与箭头是否可见（叶子不显示箭头）等 UI 展示条件无关——调用即切换：
    * - 过滤生效时：被过滤强制展开的分支（row.expanded 为 true）**不响应折叠**，
    *   箭头只作状态指示（点击/键盘/`toggleNode` 静默忽略），展开态保持过滤前的原样；
    * - 当前展开 → 折叠；当前折叠 → 展开；
    * - 懒加载未解析节点展开时会先发起加载，加载成功/为空后再落定展开态
    *   （过滤态下同样可用：加载出的新命中节点会补进过滤视图）；
+   *   **例外**：子级尚未到位的行即便已在集合里（`expandAll` 会写入待拉取分支的展开意图）
+   *   也不走折叠，仍按“加载/展开”处理——没有可视展开态可收回；
    * - 对不可切换的行（普通叶子等）调用不产生副作用。
    */
   onToggleExpand(row: Row<T>): void {
@@ -1098,7 +1100,9 @@ export class NgDraggableTreeComponent<T = unknown> implements OnChanges, AfterVi
     if (this.filterFlatMode()) return;
     // 过滤视图下“展开”由过滤逻辑决定：折叠无意义（会与过滤结果冲突），直接忽略
     if (this.filterActive() && row.expanded) return;
-    if (this.expandedIds().has(row.id)) {
+    const opts = this.optsOf();
+    const pendingLazy = row.needLazyLoad && opts.isLazyNode(row.data);
+    if (!pendingLazy && this.expandedIds().has(row.id)) {
       this.collapseRow(row);
       return;
     }
@@ -1109,21 +1113,21 @@ export class NgDraggableTreeComponent<T = unknown> implements OnChanges, AfterVi
   private expandRow(row: Row<T>): void {
     const opts = this.optsOf();
     const { id } = row;
-    if (this.expandedIds().has(id)) return;
 
-    // 懒加载未解析节点：hasChildren=false 且 isLeaf=false（flatten 中 lazyUnloaded）
-    // 首次展开需调用加载器，加载完成后由 apply 统一写入展开态并发出事件；
+    // 需要懒加载：先调用加载器，加载完成后由 apply 统一写入展开态并发出事件；
     // 已请求/加载中的节点静默忽略，避免重复请求。
-    const lazyUnloaded = !row.hasChildren && !row.isLeaf;
-    const needLoad = lazyUnloaded && !this.lazyRequested().has(id) && opts.isLazyNode(row.data);
+    // 先于「是否已在集合中」判断：expandAll 会把待拉取分支写进集合，这类行点击必须还能走到加载。
+    const needLoad = row.needLazyLoad && !this.lazyRequested().has(id) && opts.isLazyNode(row.data);
     if (needLoad) {
       void this.loadChildrenFor(row);
       return;
     }
 
-    // 可展开对象：有已加载子节点
-    const toggleable = row.hasChildren || (row.isLeaf && this.asyncLeaves().has(id));
-    if (!toggleable) return;
+    if (this.expandedIds().has(id)) return;
+
+    // 父节点一律可切换展开态：叶子直接忽略；
+    // 空目录（已拉取且确认为空）也在此列 —— 无子级可展示，但展开/折叠语义仍然成立且不重复请求
+    if (row.isLeaf) return;
 
     this.expandedIds.set(new Set([...this.expandedIds(), id]));
     this.expand.emit({ node: row.data, nodeId: id, isExpanded: true });
@@ -1139,12 +1143,10 @@ export class NgDraggableTreeComponent<T = unknown> implements OnChanges, AfterVi
     this.collapse.emit({ node: row.data, nodeId: id, isExpanded: false });
   }
 
-  /** 语义化判断：该行是否“可发起展开”（普通叶子不可，已确认无子节点的懒加载叶子可再次打开） */
+  /** 语义化判断：该行是否“可发起展开”——父节点（`!isLeaf`）即可，叶子不可 */
   private isRowExpandable(row: Row<T>): boolean {
     if (this.filterFlatMode()) return false; // 扁平结果集：不展示箭头，不可展开也不触发懒加载
-    if (row.hasChildren) return true; // 已有已加载子节点
-    if (row.isLeaf && this.asyncLeaves().has(row.id)) return true; // 已确认空的懒加载叶子：可再次打开
-    return !row.hasChildren && !row.isLeaf; // 懒加载未解析节点：可发起加载
+    return !row.isLeaf;
   }
 
   /**
@@ -1316,7 +1318,8 @@ export class NgDraggableTreeComponent<T = unknown> implements OnChanges, AfterVi
     loading.add(id);
     this.loadingIds.set(loading);
 
-    const source = this.resolveChildrenSource(nodeData, opts);
+    // 唯一的懒加载来源：全局 loadChildren（children 字段只是数据槽，其值不作来源）
+    const source = opts.loadChildren ? opts.loadChildren(nodeData) : null;
     // 完成信号：子级来源可能是同步数组 / Promise / Observable，统一在 apply 落定后 resolve，
     // 供 expandAllRecursive 逐层等待（普通交互路径不关心该 Promise）
     let settle!: () => void;
@@ -1333,7 +1336,8 @@ export class NgDraggableTreeComponent<T = unknown> implements OnChanges, AfterVi
         this.applyNodeStateFlags();
         this.expand.emit({ node: nodeData, nodeId: id, isExpanded: true });
       } else {
-        // 空目录：确认为叶子，但仍记录“已展开”，使节点保持展开视觉态
+        // 空目录：记为「已拉取且无子级」（关闭 needLazyLoad、不再重复请求），
+        // 但仍是父节点——保持展开视觉态，折叠展开按钮也得留着，用户才能把它收回去
         const leaves = new Set(this.asyncLeaves());
         leaves.add(id);
         this.asyncLeaves.set(leaves);
@@ -1363,13 +1367,6 @@ export class NgDraggableTreeComponent<T = unknown> implements OnChanges, AfterVi
     return done;
   }
 
-  private resolveChildrenSource(node: T, opts: NormalizedTreeOptions<T>): unknown {
-    const raw = (node as unknown as Record<PropertyKey, unknown>)[opts.childrenStorage];
-    if (typeof raw === 'function') return (raw as (n: T) => unknown)(node);
-    if (raw !== undefined && raw !== null && !Array.isArray(raw)) return raw;
-    if (opts.loadChildren) return opts.loadChildren(node);
-    return null;
-  }
   // ==================== 删 ====================
 
   onDelete(row: Row<T>): void {
@@ -1427,48 +1424,54 @@ export class NgDraggableTreeComponent<T = unknown> implements OnChanges, AfterVi
 
   // ==================== 公开 API ====================
 
+  /**
+   * 展开全部**父节点**：有子数据的分支、`children` 为空数组的分支、尚未拉取的懒加载分支
+   * 一律进入展开态；并对**当前已知的待拉取分支各补一层子级**（真正发起加载），
+   * 加载出来的新分支只作为折叠状态下钻的起点，不再继续往下展开 —— 要一路展开到最深层
+   * 请用 {@link expandAllRecursive}。返回 void：内部异步执行，不阻塞调用方。
+   */
   expandAll(): void {
+    // 先落位展开集合：这样 Rows 才会包含原本藏在折叠分支里的待拉取节点
     this.expandLoadedBranches();
+    for (const row of this.pendingVisibleRows()) void this.loadChildrenFor(row);
   }
 
   /**
-   * 递归展开：逐层展开**已加载**分支，并对尚未解析的懒加载分支发起加载，
-  */
+   * 递归展开：在 {@link expandAll} 的基础上逐层推进 —— 每加载出一层就把新分支一并展开，
+   * 直到没有新的待拉取项。返回 Promise：整棵树加载并展开完毕后 resolve。
+   */
   async expandAllRecursive(): Promise<void> {
     for (;;) {
-      const next = new Set(this.expandedIds());
-      const pending: Row<T>[] = [];
-      let revealed = false;
-      for (const row of this.rows()) {
-        if (row.isLeaf) continue;
-        if (row.hasChildren) {
-          // 已加载分支：写入展开态（累加而非覆盖，避免把「已展开的空目录」顺手折叠回去）
-          if (!next.has(row.id)) revealed = true;
-          next.add(row.id);
-        } else if (!this.lazyRequested().has(row.id)) {
-          pending.push(row); // 懒加载未解析：本轮发起加载，下一轮再展开其子级
-        }
-      }
-      if (revealed) {
-        this.expandedIds.set(next);
-        this.commit(false);
-      }
-      if (pending.length) {
-        await Promise.all(pending.map((row) => this.loadChildrenFor(row)));
-      } else if (!revealed) {
-        return; // 既无可加载分支、也无新展开：已到最深层
-      }
+      this.expandLoadedBranches();
+      const pending = this.pendingVisibleRows();
+      if (!pending.length) return;
+      await Promise.all(pending.map((row) => this.loadChildrenFor(row)));
     }
   }
 
-  /** 展开所有已加载分支（纯状态写入：不触发加载、不逐节点发事件） */
+  /**
+   * 当前可见行里的「待拉取分支」：子级尚未到位且尚未请求过（请求过的一律静默跳过，避免重复请求）。
+   * 只统计可见行 —— 尚未露出的深层分支等其祖先真正展开后才会进入 Rows。
+   */
+  private pendingVisibleRows(): Row<T>[] {
+    const opts = this.optsOf();
+    const requested = this.lazyRequested();
+    return this.rows().filter(
+      (row) => row.needLazyLoad && !requested.has(row.id) && opts.isLazyNode(row.data),
+    );
+  }
+
+  /** 展开全部父节点（纯状态写入：不触发加载、不逐节点发事件） */
   private expandLoadedBranches(): void {
     const opts = this.optsOf();
     const next = new Set<TreeKey>();
     // 复用定位索引已物化的全量先序条目，避免再次递归遍历数据
     for (const { id, node } of this.nodeIndex().entries()) {
+      // 父子判定与结构层（flattenStructure 的 hasChildren）保持一致：
+      // children 字段存在（含空数组）即有子级槽位；或存在待拉取的子级来源（标记 / 全局 loadChildren）。
+      // 因此「有子数据」「空目录」「待拉取分支」一律进入展开态，真正的叶子不入集合。
       const children = opts.getChildren(node);
-      if (Array.isArray(children) && children.length) next.add(id);
+      if (Array.isArray(children) || opts.isLazyNode(node)) next.add(id);
     }
     this.expandedIds.set(next);
     this.commit(false);

@@ -347,11 +347,11 @@ describe('NgDraggableTreeComponent', () => {
     fixture.destroy();
   });
 
-  it('懒加载：返回空结果（无占位箭头）→ 无箭头叶子且不再请求', async () => {
+  it('懒加载：返回空结果 → 仍是父节点（箭头保留），且不重复请求', async () => {
     const loader = vi.fn(async (_node: DemoNode) => [] as DemoNode[]);
     const { fixture } = setup({ loadChildren: (node: DemoNode) => loader(node) }, LAZY_ROOTS);
     await flush(fixture);
-    // 空目录节点展开前仍是懒加载箭头
+    // 展开前：待加载的父节点带箭头
     expect(rowsOf(fixture)[0].query(By.css('.ng-draggable-tree-toggle'))).not.toBeNull();
     clickOn(rowsOf(fixture)[0].query(By.css('.ng-draggable-tree-toggle'))!.nativeElement, 'click');
     await flush(fixture);
@@ -359,8 +359,14 @@ describe('NgDraggableTreeComponent', () => {
     expect(loader).toHaveBeenCalledTimes(1);
     // 无子级可展示
     expect(rowsOf(fixture).length).toBe(2);
-    // 加载结果为空 → 该节点成为叶子，不再显示展开折叠按钮
-    expect(rowsOf(fixture)[0].query(By.css('.ng-draggable-tree-toggle'))).toBeNull();
+    // 加载结果为空：仍是父节点，折叠展开按钮保留（用户可收回），但不再发起请求
+    expect(rowsOf(fixture)[0].query(By.css('.ng-draggable-tree-toggle'))).not.toBeNull();
+    clickOn(rowsOf(fixture)[0].query(By.css('.ng-draggable-tree-toggle'))!.nativeElement, 'click');
+    await flush(fixture);
+    clickOn(rowsOf(fixture)[0].query(By.css('.ng-draggable-tree-toggle'))!.nativeElement, 'click');
+    await flush(fixture);
+    expect(loader).toHaveBeenCalledTimes(1);
+    expect(rowsOf(fixture).length).toBe(2);
     fixture.destroy();
   });
 
@@ -485,7 +491,7 @@ describe('NgDraggableTreeComponent', () => {
     fixture.destroy();
   });
 
-  it('懒加载：空目录加载后收起箭头成为叶子，再切换不重复请求', async () => {
+  it('懒加载：空目录加载后仍是父节点，箭头保留且再切换不重复请求', async () => {
     const loader = vi.fn(async (_node: DemoNode) => [] as DemoNode[]);
     const { fixture, tree } = setup(
       { loadChildren: (node: DemoNode) => loader(node) },
@@ -493,16 +499,16 @@ describe('NgDraggableTreeComponent', () => {
     );
     await flush(fixture);
     const toggleOf = () => rowsOf(fixture)[0].query(By.css('.ng-draggable-tree-toggle'));
-    // 加载前：待懒加载的节点显示展开箭头
+    // 加载前：待懒加载的父节点显示展开箭头
     expect(toggleOf()).not.toBeNull();
 
-    // 首次展开 → 空目录：记为叶子并收起箭头（叶子不显示展开折叠按钮）
+    // 首次展开 → 空目录：仍是父节点，折叠展开按钮保留（叶子不显示按钮）
     clickOn(toggleOf()!.nativeElement, 'click');
     await flush(fixture);
     await flush(fixture);
     expect(loader).toHaveBeenCalledTimes(1);
     expect(rowsOf(fixture).length).toBe(2);
-    expect(toggleOf()).toBeNull();
+    expect(toggleOf()).not.toBeNull();
 
     // 语义层仍可折叠/展开，且不重复请求
     tree.toggleNode('1');
@@ -1164,20 +1170,59 @@ describe('递归展开：expandAllRecursive', () => {
     fixture.destroy();
   });
 
-  it('expandAll 只展开已加载分支，完全不触发懒加载', async () => {
+  it('expandAll 只给待拉取分支补一层，不继续下钻', async () => {
     const loader = makeLoader();
+    const { fixture, tree } = setup({ loadChildren: (node: DemoNode) => loader(node) }, LAZY_ROOTS);
+    await flush(fixture);
+    expect(visibleIds(fixture)).toEqual(['1', '2']); // 初始只有根层，两个都待拉取
+
+    // 不 await：expandAll 返回 void，内部异步推进 —— 多轮 flush 等其全部落定
+    tree.expandAll();
+    await flush(fixture);
+    await flush(fixture);
+    await flush(fixture);
+    await flush(fixture);
+
+    // 只请求当时可见的待拉取分支（'1' / '2'）；'1' 加载出的 '1-1' 不再往下请求
+    expect(loader.mock.calls.map(([n]) => n.id).sort()).toEqual(['1', '2']);
+    // '1-1' 已就位但仍是折叠态（有自己的箭头），与展开着的 '1' / '2' 区分开
+    expect(visibleIds(fixture)).toEqual(['1', '1-1', '2']);
+    expect(tree.getExpandedIds()).toEqual(['1', '2']);
+
+    // 再走递归版本才一层层铺到最后一层
+    await tree.expandAllRecursive();
+    await flush(fixture);
+    expect(loader.mock.calls.map(([n]) => n.id).sort()).toEqual(['1', '1-1', '1-1-1', '2']);
+    expect(visibleIds(fixture)).toEqual(['1', '1-1', '1-1-1', '2']);
+    expect(tree.getExpandedIds()).toEqual(['1', '1-1', '1-1-1', '2']);
+    fixture.destroy();
+  });
+
+  it('expandAll 覆盖全部父节点：含 children 为空与拉取结果为空的分支', async () => {
+    const roots: DemoNode[] = [
+      { id: '1', name: '有子级', children: [{ id: '1-1', name: '子级' }] },
+      { id: '2', name: '空 children', children: [] },
+      { id: '3', name: '拉取为空', hasChildren: true } as DemoNode,
+      { id: '4', name: '明确叶子', hasChildren: false } as DemoNode,
+    ];
+    const loader = vi.fn(async (_node: DemoNode) => [] as DemoNode[]);
     const { fixture, tree } = setup(
-      { loadChildren: (node: DemoNode) => loader(node) },
-      [{ id: '1', name: '项目', children: [{ id: '1-1', name: 'src' }] }, ...LAZY_ROOTS.slice(1)],
+      { hasChildrenField: 'hasChildren', loadChildren: (node: DemoNode) => loader(node) },
+      roots,
     );
     await flush(fixture);
 
     tree.expandAll();
     await flush(fixture);
+    await flush(fixture);
+    await flush(fixture);
+    await flush(fixture);
 
-    expect(loader).not.toHaveBeenCalled();
-    expect(visibleIds(fixture)).toEqual(['1', '1-1', '2']);
-    expect(tree.getExpandedIds()).toEqual(['1']);
+    // '2'（空数组）与 '3'（标记待拉取）都会走一次加载；'1-1' 无标记但有全局 loadChildren → 也拉取一次
+    expect(loader.mock.calls.map(([n]) => n.id).sort()).toEqual(['1-1', '2', '3']);
+    // 拉取为空的分支仍是父节点：与 '1'（有子数据）、'2'（空数组）同样进入展开集合；
+    // '4' 明确标记 hasChildren: false → 叶子，不入集合
+    expect(tree.getExpandedIds()).toEqual(['1', '1-1', '2', '3']);
     fixture.destroy();
   });
 });
