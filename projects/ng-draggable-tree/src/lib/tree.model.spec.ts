@@ -62,7 +62,7 @@ describe('walkNodes', () => {
     expect(out).toEqual(['1', '1-1', '1-2', '1-2-1', '2']);
   });
 
-  it('children 字段值为懒加载函数时不递归未加载子树', () => {
+  it('children 字段值不是数组时按无子级处理，不递归其子树', () => {
     const options = normalizeOptions<DemoNode>({ idField: 'id', displayField: 'name' });
     const node = { id: 'lazy', name: 'x', children: () => null } as unknown as DemoNode;
     const out: TreeKey[] = [];
@@ -102,7 +102,7 @@ describe('flattenRows', () => {
     expect(rows[0].expanded).toBe(false);
   });
 
-  it('hasChildrenField 标记有子节点：未加载时按非叶子处理，确认为空后转为叶子', () => {
+  it('hasChildrenField 标记有子节点：加载结果为空也仍是父节点，箭头保留但不再重复请求', () => {
     const options = normalizeOptions<DemoNode>({
       idField: 'id',
       displayField: 'name',
@@ -110,13 +110,19 @@ describe('flattenRows', () => {
     });
     const roots = [{ id: 'P', name: '父', hasChildren: true } as DemoNode];
 
-    // 未加载：非叶子 → 展示展开箭头
+    // 未加载：父节点 → 展示展开箭头，首次展开需先拉取
     const pending = flattenRows(ctxOf({ options, roots }));
+    expect(pending[0].hasChildren).toBe(true); // 标记即父子身份，与子节点数据是否到位无关
     expect(pending[0].isLeaf).toBe(false);
+    expect(pending[0].expanderVisible).toBe(true);
+    expect(pending[0].needLazyLoad).toBe(true);
 
-    // 加载结果为空（已记录 asyncLeaves）：按叶子处理，不再显示展开按钮
+    // 拉取结果为空（已记录 asyncLeaves）：仍是父节点（箭头保留），但不再需要懒加载
     const empty = flattenStructure(ctxOf({ options, roots, asyncLeaves: new Set(['P']) }));
-    expect(empty[0].isLeaf).toBe(true);
+    expect(empty[0].hasChildren).toBe(true);
+    expect(empty[0].isLeaf).toBe(false);
+    expect(empty[0].expanderVisible).toBe(true);
+    expect(empty[0].needLazyLoad).toBe(false);
   });
 
   it('hasChildrenField 支持自定义字段名，非 true 视为叶子', () => {

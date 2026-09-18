@@ -4,6 +4,7 @@ export interface FileNode {
   id: string;
   name: string;
   icon?:string;
+  hasChildren?: boolean;
   kind: 'folder' | 'file';
   children?: FileNode[];
 }
@@ -111,6 +112,14 @@ export function fileTree(): FileNode[] {
         { id: 'p3-cdk', name: 'CDK Tree 说明.md',icon:'numericlist', kind: 'file' },
       ],
     },
+     {
+      id: 'p4',
+      name: '空目录',
+      kind: 'folder',
+      icon:'page',
+      hasChildren:true,
+      children:[]
+    },
   ];
 }
 
@@ -170,7 +179,7 @@ export function permissionTree(): DictNode[] {
 /** 懒加载示例的初始节点（id 每次重置都重新生成，便于清空加载状态） */
 export function lazySeed(seq: number = 0): LazyNode[] {
   // 不预置 children 数组，只用 hasChildren 标记“还有下一层”：展开时再由 loadChildren 拉取
-  return [{ id: `dc-root-${seq}`, name: '数据中心', hasChildren: true,expanded:true }];
+  return [{ id: `dc-root-${seq}`, name: '数据中心', hasChildren: true }];
 }
 
 /**

@@ -18,10 +18,21 @@ export interface TreeRow<T = unknown> {
   indexInParent: number;
   /** 父级 id；根节点为 null */
   parentId: TreeKey | null;
-  /** 是否已有已加载子节点 */
+  /**
+   * 是否有子节点（是否是父节点）——**只看结构，不看数据是否到位**。
+   * 两种情形都算“有子节点”：已有已加载的子节点（`children` 数组非空），
+   * 或存在待拉取的子级来源（`hasChildrenField` 标记 / 全局 `loadChildren`）。
+   * 因此加载前的分支、以及拉取结果为空的空目录，都是父节点。
+   */
   hasChildren: boolean;
-  /** 是否处于展开态：驱动箭头样式；有子节点时子级随之可见，空叶子懒加载展开后同样保持展开态 */
+  /** 是否处于展开态：驱动箭头样式；有子节点时子级随之可见，空目录懒加载展开后同样保持展开态 */
   expanded: boolean;
+  /**
+   * 是否需要懒加载：是父节点（{@link hasChildren} 为真）但子节点尚未拉取，且未被确认为空目录。
+   * 为真时首次展开会先发起一次加载（{@link NormalizedTreeOptions.isLazyNode} 所述来源）；
+   * 不需要懒加载、或已加载过（含「拉取结果为空」的空目录）恒为 false，不再重复请求。
+   */
+  needLazyLoad: boolean;
   /**
    * 是否选中（装饰态）。结构层恒为占位 `false`，由装饰层填充；
    * 选中集合因此**不参与**结构层依赖，选中变化不会触发整树重算。
@@ -35,7 +46,6 @@ export interface TreeRow<T = unknown> {
   subtreeHasMatch: boolean;
   /** 复选框三态（装饰态）。结构层恒为占位 `'hidden'`，由装饰层填充 */
   checkboxState: 'checked' | 'indeterminate' | 'unchecked' | 'hidden';
-  /** 是否为叶子（结构语义：无已加载子节点、且非待懒加载节点）。箭头显隐另见 {@link expanderVisible} */
   isLeaf: boolean;
   /**
    * 当前视图下是否展示展开箭头（视图派生，非结构语义）。
@@ -82,9 +92,13 @@ export interface StructureContext<T = unknown> {
   expanded: ReadonlySet<TreeKey>;
   /** 过滤关键词；空串=不过滤 */
   keyword?: string;
-  /** 懒加载节点已确认无子节点的集合（展开后保持展开态、不再重试） */
+  /**
+   * 已拉取且确认为「子级为空」的懒加载父节点集合。
+   * 只用于关闭 {@link TreeRow.needLazyLoad}（不再重复请求）与保持展开视觉态，
+   * **不影响父节点身份**：这些节点仍是父节点，照常展示折叠展开按钮。
+   */
   asyncLeaves?: ReadonlySet<TreeKey>;
-  /** 逐节点判断是否具备懒加载子节点来源（字段函数 / 字段 Promise / hasChildrenField 标记 / loadChildren） */
+  /** 逐节点判断是否具备懒加载子节点来源（hasChildrenField 标记 / 全局 loadChildren） */
   isLazyNode?: (node: T) => boolean;
 }
 
@@ -247,7 +261,8 @@ export function flattenStructure<T>(ctx: StructureContext<T>): TreeRow<T>[] {
     const frame = stack.pop()!;
     const { data, id, depth, parent, parentId, indexInParent } = frame;
     const children = readChildren(data, options);
-    const hasChildren = !!children && children.length > 0;
+    // 已加载的子节点是否非空：有数据才真正论“能展示几行”，与「是不是父节点」无关
+    const loadedChildren = !!children && children.length > 0;
 
     const selfMatch = filterSet ? filterSet.get(id) === true : false;
     const subtreeMatch = filterSet ? filterSet.has(id) : false;
@@ -258,16 +273,21 @@ export function flattenStructure<T>(ctx: StructureContext<T>): TreeRow<T>[] {
     if (flatFilter) pushChildren(children, data, id, depth + 1);
     if (!visible) continue;
 
-    // 子节点尚未加载但存在来源：字段函数 / 字段 Promise / hasChildrenField 标记 / loadChildren
-    const lazyUnloaded = !hasChildren && !asyncLeaves?.has(id) && ctx.isLazyNode?.(data) === true;
+    // 待拉取的子级来源：hasChildrenField 标记 / 全局 loadChildren（children 字段值本身不是来源）
+    const hasLazySource = ctx.isLazyNode?.(data) === true;
+    // 唯一的父子判定：已有已加载子节点，或存在待拉取的子级来源。
+    // 只取决于「有没有子级」，与子节点数据是否到位无关（加载前的分支、空目录都仍是父节点）
+    const hasChildren = loadedChildren || hasLazySource;
+    // 需要懒加载：是父节点但子节点尚未到位，且未被确认为空目录（确认为空后不再重复请求）
+    const needLazyLoad = !loadedChildren && hasLazySource && !asyncLeaves?.has(id);
     // 是否真正向下展示子节点（决定是否遍历子级）
     // 结果集模式的行不展开：子级只按「自身命中」独立成行（已在上面无条件下钻）
     const baseRevealing = flatFilter
       ? false
-      : hasChildren && (filterActive ? subtreeMatch : expanded.has(id));
-    // 已确认无子节点的懒加载叶子：用户展开过后保持“展开”视觉态（无子级可遍历）
+      : loadedChildren && (filterActive ? subtreeMatch : expanded.has(id));
+    // 已确认无子节点的懒加载父子点：用户展开过后保持“展开”视觉态（无子级可遍历）
     const emptyOpened =
-      !filterActive && !hasChildren && !!asyncLeaves?.has(id) && expanded.has(id);
+      !filterActive && !loadedChildren && !!asyncLeaves?.has(id) && expanded.has(id);
     const revealing = baseRevealing || emptyOpened;
 
     rows.push({
@@ -279,6 +299,7 @@ export function flattenStructure<T>(ctx: StructureContext<T>): TreeRow<T>[] {
       parentId,
       indexInParent,
       hasChildren,
+      needLazyLoad,
       expanded: revealing,
       // 装饰字段一律占位：结构层不依赖选中/勾选集合，装饰变化不触发整树重算
       selected: false,
@@ -287,10 +308,11 @@ export function flattenStructure<T>(ctx: StructureContext<T>): TreeRow<T>[] {
       // 祖先路径行只在保留路径的视图里存在；结果集不含任何「因后代命中而展示」的行
       subtreeHasMatch: flatFilter ? false : subtreeMatch,
       checkboxState: 'hidden',
-      // 非叶子（有子节点 / 待懒加载）即展示展开箭头
-      isLeaf: !hasChildren && !lazyUnloaded,
-      // 结果集模式下行不可展开（即使结构上有子节点）：箭头不展示，交互与懒加载一并禁用
-      expanderVisible: !(!hasChildren && !lazyUnloaded) && !flatFilter,
+      // 叶子只由「是不是父节点」决定：无子节点即叶子（忽略加载状态与加载结果）
+      isLeaf: !hasChildren,
+      // 父节点一律展示折叠展开按钮；唯一例外是「只展示命中节点自身」的过滤结果集
+      // （该视图是扁平结果集，行不可展开，交互与懒加载一并禁用）
+      expanderVisible: hasChildren && !flatFilter,
       linesVisible: !filterActive,
     });
 
